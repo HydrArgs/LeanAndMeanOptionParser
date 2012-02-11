@@ -19,7 +19,7 @@ struct Arg: public option::Arg
 {
   static option::ArgStatus Unknown(const option::Option& option, bool msg)
   {
-    if (msg) fprintf(stderr, "ERROR: Unknown option '%s'\n", option.name);
+    if (msg) fprintf(stderr, "Unknown option '%s'\n", option.name);
     return option::ARG_ILLEGAL;
   }
 

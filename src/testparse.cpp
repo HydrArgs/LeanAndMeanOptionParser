@@ -92,6 +92,8 @@ const char* multi3[] = { "-abbr", "-abb", "--emptyarg", "-verbose", "--emptyarg"
                          "nonoption2", (const char*) -1 };
 
 const char* illegal[] = { "-X", 0 };
+const char* reorder[] = { "-X", "--", "-", "-X", "--", "foo", "-v", "--", "bar", "--", 0 };
+const char* reorder2[] = { "-X", "--", "-", "-X", "--", "-", 0 };
 
 int count(const char** args)
 {
@@ -318,7 +320,6 @@ int main()
     parse.parse(multi_usage, -1, illegal, options, buffer, 0, false, 2);
     assert(parse.error());
   }
-
   {
     Stats stats(multi_usage, count(multi3), multi3, 0, true);
     const int bufmax = 3;
@@ -336,6 +337,24 @@ int main()
     assert(eq(options[UNKNOWN].first()->name,"a"));
     assert(options[UNKNOWN].first()->arg == 0);
     assert(eq(options[UNKNOWN].last()->name,"b"));
+  }
+  {
+    Stats stats(true, multi_usage, -1, reorder);
+    Option buffer[stats.buffer_max];
+    Option options[stats.options_max];
+    Parser parse(true, multi_usage, -1, reorder, options, buffer);
+    assert(!parse.error());
+    assert(parse.optionsCount() == 3);
+    assert(parse.nonOptionsCount() == 4);
+    assert(parse.nonOptions() == &reorder[6]);
+  }
+  {
+    Option buffer[10];
+    Option options[10];
+    Parser parse(true, multi_usage, 666, reorder2, options, buffer, 0, false, 10);
+    assert(!parse.error());
+    assert(parse.optionsCount() == 2);
+    assert(parse.nonOptionsCount() == 2);
   }
 
   fprintf(stdout, "All tests passed.\n");

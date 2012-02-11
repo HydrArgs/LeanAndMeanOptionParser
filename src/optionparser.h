@@ -89,9 +89,14 @@
  *
  * @par Download:
  * Tarball with examples and test programs:
- * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.0.tar.gz/download">optionparser-1.0.tar.gz</a> @n
+ * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.1.tar.gz/download">optionparser-1.1.tar.gz</a> @n
  * Just the header (this is all you really need):
  * <a style="font-size:larger;font-weight:bold" href="http://optionparser.sourceforge.net/optionparser.h">optionparser.h</a>
+ *
+ * @par Changelog:
+ * <b>Version 1.1:</b> Optional mode with argument reordering as done by GNU getopt(), so that
+ *                     options and non-options can be mixed. See
+ *                     @ref option::Parser::parse() "Parser::parse()".
  *
  * @par Feedback:
  * Send questions, bug reports, feature requests etc. to: <tt><b>optionparser-feedback&nbsp;(a)&nbsp;lists.sourceforge.net</b></tt>
@@ -158,9 +163,9 @@
  * @li long options have the format @c --option-name.
  * @li the option-name of a long option can be anything and include any characters.
  *     Even @c = characters will work, but don't do that.
- * @li (optional) long options may be abbreviated as long as the abbreviation is unambiguous.
+ * @li [optional] long options may be abbreviated as long as the abbreviation is unambiguous.
  *     You can set a minimum length for abbreviations.
- * @li (optional) long options may begin with a single minus. The double minus form is always
+ * @li [optional] long options may begin with a single minus. The double minus form is always
  *     accepted, too.
  * @li a long option may take an argument either separate (<code> --option arg </code>) or
  *     attached (<code> --option=arg </code>). In the attached form the equals sign is mandatory.
@@ -179,7 +184,8 @@
  *     non-option arguments, even if they start with @c - . @n
  *     NOTE: This behaviour is mandated by POSIX, but GNU getopt() only honours this if it is
  *     explicitly requested (e.g. by setting POSIXLY_CORRECT). @n
- *     Support for GNU's non-POSIX behaviour is planned for a future version.
+ *     You can enable the GNU behaviour by passing @c true as first argument to
+ *     e.g. @ref option::Parser::parse() "Parser::parse()".
  * @li Arguments that look like options (i.e. @c - followed by at least 1 character) but
  *     aren't, are NOT treated as non-option arguments. They are treated as unknown options and
  *     are collected into a list of unknown options for error reporting. @n
@@ -892,19 +898,35 @@ struct Stats
    * @note
    * The calls to Stats methods must match the later calls to Parser methods.
    */
+  Stats(bool gnu, const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
+        bool single_minus_longopt = false) :
+      buffer_max(1), options_max(1) // 1 more than necessary as sentinel
+  {
+    add(gnu, usage, argc, argv, min_abbr_len, single_minus_longopt);
+  }
+
+  //! @brief Stats(...) with non-const argv.
+  Stats(bool gnu, const Descriptor usage[], int argc, char** argv, int min_abbr_len = 0, //
+        bool single_minus_longopt = false) :
+      buffer_max(1), options_max(1) // 1 more than necessary as sentinel
+  {
+    add(gnu, usage, argc, (const char**) argv, min_abbr_len, single_minus_longopt);
+  }
+
+  //! @brief POSIX Stats(...) (gnu==false).
   Stats(const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
         bool single_minus_longopt = false) :
       buffer_max(1), options_max(1) // 1 more than necessary as sentinel
   {
-    add(usage, argc, argv, min_abbr_len, single_minus_longopt);
+    add(false, usage, argc, argv, min_abbr_len, single_minus_longopt);
   }
 
-  //! @brief Stats(...) with non-const argv.
+  //! @brief POSIX Stats(...) (gnu==false) with non-const argv.
   Stats(const Descriptor usage[], int argc, char** argv, int min_abbr_len = 0, //
         bool single_minus_longopt = false) :
       buffer_max(1), options_max(1) // 1 more than necessary as sentinel
   {
-    add(usage, argc, (const char**) argv, min_abbr_len, single_minus_longopt);
+    add(false, usage, argc, (const char**) argv, min_abbr_len, single_minus_longopt);
   }
 
   /**
@@ -915,14 +937,28 @@ struct Stats
    * @note
    * The calls to Stats methods must match the later calls to Parser methods.
    */
-  void add(const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
+  void add(bool gnu, const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
            bool single_minus_longopt = false);
 
   //! @brief add() with non-const argv.
+  void add(bool gnu, const Descriptor usage[], int argc, char** argv, int min_abbr_len = 0, //
+           bool single_minus_longopt = false)
+  {
+    add(gnu, usage, argc, (const char**) argv, min_abbr_len, single_minus_longopt);
+  }
+
+  //! @brief POSIX add() (gnu==false).
+  void add(const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
+           bool single_minus_longopt = false)
+  {
+    add(false, usage, argc, argv, min_abbr_len, single_minus_longopt);
+  }
+
+  //! @brief POSIX add() (gnu==false) with non-const argv.
   void add(const Descriptor usage[], int argc, char** argv, int min_abbr_len = 0, //
            bool single_minus_longopt = false)
   {
-    add(usage, argc, (const char**) argv, min_abbr_len, single_minus_longopt);
+    add(false, usage, argc, (const char**) argv, min_abbr_len, single_minus_longopt);
   }
 private:
   class CountOptionsAction;
@@ -968,24 +1004,46 @@ public:
    * @brief Creates a new Parser and immediately parses the given argument vector.
    * @copydetails parse()
    */
+  Parser(bool gnu, const Descriptor usage[], int argc, const char** argv, Option options[], Option buffer[],
+         int min_abbr_len = 0, bool single_minus_longopt = false, int bufmax = -1) :
+      op_count(0), nonop_count(0), nonop_args(0), err(false)
+  {
+    parse(gnu, usage, argc, argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+  }
+
+  //! @brief Parser(...) with non-const argv.
+  Parser(bool gnu, const Descriptor usage[], int argc, char** argv, Option options[], Option buffer[],
+         int min_abbr_len = 0, bool single_minus_longopt = false, int bufmax = -1) :
+      op_count(0), nonop_count(0), nonop_args(0), err(false)
+  {
+    parse(gnu, usage, argc, (const char**) argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+  }
+
+  //! @brief POSIX Parser(...) (gnu==false).
   Parser(const Descriptor usage[], int argc, const char** argv, Option options[], Option buffer[], int min_abbr_len = 0,
          bool single_minus_longopt = false, int bufmax = -1) :
       op_count(0), nonop_count(0), nonop_args(0), err(false)
   {
-    parse(usage, argc, argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+    parse(false, usage, argc, argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
   }
 
-  //! @brief Parser(...) with non-const argv.
+  //! @brief POSIX Parser(...) (gnu==false) with non-const argv.
   Parser(const Descriptor usage[], int argc, char** argv, Option options[], Option buffer[], int min_abbr_len = 0,
          bool single_minus_longopt = false, int bufmax = -1) :
       op_count(0), nonop_count(0), nonop_args(0), err(false)
   {
-    parse(usage, argc, (const char**) argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+    parse(false, usage, argc, (const char**) argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
   }
 
   /**
    * @brief Parses the given argument vector.
    *
+   * @param gnu if true, parse() will not stop at the first non-option argument. Instead it will
+   *            reorder arguments so that all non-options are at the end. This is the default behaviour
+   *            of GNU getopt() but is not conforming to POSIX. @n
+   *            Note, that once the argument vector has been reordered, the @c gnu flag will have
+   *            no further effect on this argument vector. So it is enough to pass @c gnu==true when
+   *            creating Stats.
    * @param usage Array of Descriptor objects that describe the options to support. The last entry
    *              of this array must have 0 in all fields.
    * @param argc The number of elements from @c argv that are to be parsed. If you pass -1, the number
@@ -1033,14 +1091,28 @@ public:
    * @c options[]. You can get the linked list in options from a buffer object via something like
    * @c options[buffer[i].index()].
    */
-  void parse(const Descriptor usage[], int argc, const char** argv, Option options[], Option buffer[],
+  void parse(bool gnu, const Descriptor usage[], int argc, const char** argv, Option options[], Option buffer[],
              int min_abbr_len = 0, bool single_minus_longopt = false, int bufmax = -1);
 
   //! @brief parse() with non-const argv.
+  void parse(bool gnu, const Descriptor usage[], int argc, char** argv, Option options[], Option buffer[],
+             int min_abbr_len = 0, bool single_minus_longopt = false, int bufmax = -1)
+  {
+    parse(gnu, usage, argc, (const char**) argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+  }
+
+  //! @brief POSIX parse() (gnu==false).
+  void parse(const Descriptor usage[], int argc, const char** argv, Option options[], Option buffer[],
+             int min_abbr_len = 0, bool single_minus_longopt = false, int bufmax = -1)
+  {
+    parse(false, usage, argc, argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+  }
+
+  //! @brief POSIX parse() (gnu==false) with non-const argv.
   void parse(const Descriptor usage[], int argc, char** argv, Option options[], Option buffer[], int min_abbr_len = 0,
              bool single_minus_longopt = false, int bufmax = -1)
   {
-    parse(usage, argc, (const char**) argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
+    parse(false, usage, argc, (const char**) argv, options, buffer, min_abbr_len, single_minus_longopt, bufmax);
   }
 
   /**
@@ -1130,7 +1202,7 @@ private:
    * @brief This is the core function that does all the parsing.
    * @retval false iff an unrecoverable error occurred.
    */
-  static bool workhorse(const Descriptor usage[], int numargs, const char** args, Action& action,
+  static bool workhorse(bool gnu, const Descriptor usage[], int numargs, const char** args, Action& action,
                         bool single_minus_longopt, bool print_errors, int min_abbr_len);
 
   /**
@@ -1204,6 +1276,20 @@ private:
     return *st == ch;
   }
 
+  /**
+   * @internal
+   * @brief Rotates <code>args[-count],...,args[-1],args[0]</code> to become
+   *        <code>args[0],args[-count],...,args[-1]</code>.
+   */
+  static void shift(const char** args, int count)
+  {
+    for (int i = 0; i > -count; --i)
+    {
+      const char* temp = args[i];
+      args[i] = args[i - 1];
+      args[i - 1] = temp;
+    }
+  }
 };
 
 /**
@@ -1333,14 +1419,14 @@ public:
   }
 };
 
-inline void Parser::parse(const Descriptor usage[], int argc, const char** argv, Option options[], Option buffer[],
-                          int min_abbr_len, bool single_minus_longopt, int bufmax)
+inline void Parser::parse(bool gnu, const Descriptor usage[], int argc, const char** argv, Option options[],
+                          Option buffer[], int min_abbr_len, bool single_minus_longopt, int bufmax)
 {
   StoreOptionAction action(*this, options, buffer, bufmax);
-  err = !workhorse(usage, argc, argv, action, single_minus_longopt, true, min_abbr_len);
+  err = !workhorse(gnu, usage, argc, argv, action, single_minus_longopt, true, min_abbr_len);
 }
 
-inline void Stats::add(const Descriptor usage[], int argc, const char** argv, int min_abbr_len,
+inline void Stats::add(bool gnu, const Descriptor usage[], int argc, const char** argv, int min_abbr_len,
                        bool single_minus_longopt)
 {
   // determine size of options array. This is the greatest index used in the usage + 1
@@ -1354,28 +1440,42 @@ inline void Stats::add(const Descriptor usage[], int argc, const char** argv, in
   }
 
   CountOptionsAction action(&buffer_max);
-  Parser::workhorse(usage, argc, argv, action, single_minus_longopt, false, min_abbr_len);
+  Parser::workhorse(gnu, usage, argc, argv, action, single_minus_longopt, false, min_abbr_len);
 }
 
-inline bool Parser::workhorse(const Descriptor usage[], int numargs, const char** args, Action& action,
+inline bool Parser::workhorse(bool gnu, const Descriptor usage[], int numargs, const char** args, Action& action,
                               bool single_minus_longopt, bool print_errors, int min_abbr_len)
 {
   // protect against NULL pointer
   if (args == 0)
     numargs = 0;
 
+  int nonops = 0;
+
   while (numargs != 0 && *args != 0)
   {
     const char* param = *args; // param can be --long-option, -srto or non-option argument
 
-    // the first non-option argument terminates the option list
+    // in POSIX mode the first non-option argument terminates the option list
     // a lone minus character is a non-option argument
     if (param[0] != '-' || param[1] == 0)
-      break;
+    {
+      if (gnu)
+      {
+        ++nonops;
+        ++args;
+        if (numargs > 0)
+          --numargs;
+        continue;
+      }
+      else
+        break;
+    }
 
     // -- terminates the option list. The -- itself is skipped.
     if (param[1] == '-' && param[2] == 0)
     {
+      shift(args, nonops);
       ++args;
       if (numargs > 0)
         --numargs;
@@ -1482,6 +1582,7 @@ inline bool Parser::workhorse(const Descriptor usage[], int numargs, const char*
             // skip one element of the argument vector, if it's a separated argument
             if (optarg != 0 && have_more_args && optarg == args[1])
             {
+              shift(args, nonops);
               if (numargs > 0)
                 --numargs;
               ++args;
@@ -1503,6 +1604,7 @@ inline bool Parser::workhorse(const Descriptor usage[], int numargs, const char*
 
     } while (handle_short_options);
 
+    shift(args, nonops);
     ++args;
     if (numargs > 0)
       --numargs;
@@ -1519,7 +1621,7 @@ inline bool Parser::workhorse(const Descriptor usage[], int numargs, const char*
       ++numargs;
   }
 
-  return action.finished(numargs, args);
+  return action.finished(numargs + nonops, args - nonops);
 }
 
 /**
