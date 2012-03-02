@@ -17,9 +17,16 @@
 
 struct Arg: public option::Arg
 {
+  static void printError(const char* msg1, const option::Option& opt, const char* msg2)
+  {
+    fprintf(stderr, "%s", msg1);
+    fwrite(opt.name, opt.namelen, 1, stderr);
+    fprintf(stderr, "%s", msg2);
+  }
+
   static option::ArgStatus Unknown(const option::Option& option, bool msg)
   {
-    if (msg) fprintf(stderr, "Unknown option '%s'\n", option.name);
+    if (msg) printError("Unknown option '", option, "'\n");
     return option::ARG_ILLEGAL;
   }
 
@@ -28,7 +35,7 @@ struct Arg: public option::Arg
     if (option.arg != 0)
       return option::ARG_OK;
 
-    if (msg) fprintf(stderr, "Option '%s' requires an argument\n", option.name);
+    if (msg) printError("Option '", option, "' requires an argument\n");
     return option::ARG_ILLEGAL;
   }
 
@@ -37,7 +44,7 @@ struct Arg: public option::Arg
     if (option.arg != 0 && option.arg[0] != 0)
       return option::ARG_OK;
 
-    if (msg) fprintf(stderr, "Option '%s' requires a non-empty argument\n", option.name);
+    if (msg) printError("Option '", option, "' requires a non-empty argument\n");
     return option::ARG_ILLEGAL;
   }
 
@@ -48,7 +55,7 @@ struct Arg: public option::Arg
     if (endptr != option.arg && *endptr == 0)
       return option::ARG_OK;
 
-    if (msg) fprintf(stderr, "Option '%s' requires a numeric argument\n", option.name);
+    if (msg) printError("Option '", option, "' requires a numeric argument\n");
     return option::ARG_ILLEGAL;
   }
 };
@@ -58,7 +65,7 @@ const option::Descriptor usage[] = {
 { UNKNOWN, 0,"", "",        Arg::Unknown, "USAGE: example_arg [options]\n\n"
                                           "Options:" },
 { HELP,    0,"", "help",    Arg::None,    "  \t--help  \tPrint usage and exit." },
-{ OPTIONAL,0,"o","optional",Arg::Optional,"  -o [<arg>], \t--optional[=<arg>]"
+{ OPTIONAL,0,"o","optional",Arg::Optional,"  -o[<arg>], \t--optional[=<arg>]"
                                           "  \tTakes an argument but is happy without one." },
 { REQUIRED,0,"r","required",Arg::Required,"  -r <arg>, \t--required=<arg>  \tMust have an argument." },
 { NUMERIC, 0,"n","numeric", Arg::Numeric, "  -n <num>, \t--numeric=<num>  \tRequires a number as argument." },
@@ -70,12 +77,21 @@ const option::Descriptor usage[] = {
  "  example_arg -o -n10 file1 file2 \n"
  "  example_arg -nfoo file1 file2 \n"
  "  example_arg --optional -- file1 file2 \n"
+ "  example_arg --optional file1 file2 \n"
+ "  example_arg --optional=file1 file2 \n"
+ "  example_arg --optional=  file1 file2 \n"
  "  example_arg -o file1 file2 \n"
+ "  example_arg -ofile1 file2 \n"
  "  example_arg -unk file1 file2 \n"
  "  example_arg -r -- file1 \n"
+ "  example_arg -r file1 \n"
  "  example_arg --required \n"
+ "  example_arg --required=file1 \n"
  "  example_arg --nonempty= file1 \n"
  "  example_arg --nonempty=foo --numeric=999 --optional=bla file1 \n"
+ "  example_arg -1foo \n"
+ "  example_arg -1 -- \n"
+ "  example_arg -1 \"\" \n"
 },
 { 0, 0, 0, 0, 0, 0 } };
 

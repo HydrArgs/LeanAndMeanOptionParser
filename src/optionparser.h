@@ -89,11 +89,16 @@
  *
  * @par Download:
  * Tarball with examples and test programs:
- * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.1.tar.gz/download">optionparser-1.1.tar.gz</a> @n
+ * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.2.tar.gz/download">optionparser-1.2.tar.gz</a> @n
  * Just the header (this is all you really need):
  * <a style="font-size:larger;font-weight:bold" href="http://optionparser.sourceforge.net/optionparser.h">optionparser.h</a>
  *
  * @par Changelog:
+ * <b>Version 1.2:</b> <div style="display:inline-block; vertical-align:top">Added @ref option::Option::namelen "Option::namelen" and removed the extraction
+ *                     of short option characters into a special buffer. @n
+ *                     Changed @ref option::Arg::Optional "Arg::Optional" to accept arguments if they are attached
+ *                     rather than separate. This is what GNU getopt() does and how POSIX recommends
+ *                     utilities should interpret their arguments.</div> @n
  * <b>Version 1.1:</b> Optional mode with argument reordering as done by GNU getopt(), so that
  *                     options and non-options can be mixed. See
  *                     @ref option::Parser::parse() "Parser::parse()".
@@ -158,7 +163,7 @@
  *     enabling single-minus long options.
  * @li an argument-taking short option may be grouped if it is the last in the group, e.g.
  *     @c -ABCXfoo or <code> -ABCX foo </code> (@c foo is the argument to the @c -X option).
- * @li a lone minus character @c - is not treated as an option. It is customarily used where
+ * @li a lone minus character @c '-' is not treated as an option. It is customarily used where
  *     a file name is expected to refer to stdin or stdout.
  * @li long options have the format @c --option-name.
  * @li the option-name of a long option can be anything and include any characters.
@@ -172,21 +177,23 @@
  * @li an empty string can be passed as an attached long option argument: <code> --option-name= </code>.
  *     Note the distinction between an empty string as argument and no argument at all.
  * @li an empty string is permitted as separate argument to both long and short options.
- * @li Arguments to both short and long options may start with a @c - character. E.g.
+ * @li Arguments to both short and long options may start with a @c '-' character. E.g.
  *     <code> -X-X </code>, <code>-X -X</code> or <code> --long-X=-X </code>. If @c -X
  *     and @c --long-X take an argument, that argument will be @c "-X" in all 3 cases.
+ * @li If using the built-in @ref option::Arg::Optional "Arg::Optional", optional arguments must
+ *     be attached.
  * @li the special option @c -- (i.e. without a name) terminates the list of
  *     options. Everything that follows is a non-option argument, even if it starts with
- *     a @c - character. The @c -- itself will not appear in the parse results.
- * @li the first argument that doesn't start with a @c - or @c -- and does not belong to
+ *     a @c '-' character. The @c -- itself will not appear in the parse results.
+ * @li the first argument that doesn't start with @c '-' or @c '--' and does not belong to
  *     a preceding argument-taking option, will terminate the option list and is the
  *     first non-option argument. All following command line arguments are treated as
- *     non-option arguments, even if they start with @c - . @n
+ *     non-option arguments, even if they start with @c '-' . @n
  *     NOTE: This behaviour is mandated by POSIX, but GNU getopt() only honours this if it is
  *     explicitly requested (e.g. by setting POSIXLY_CORRECT). @n
  *     You can enable the GNU behaviour by passing @c true as first argument to
  *     e.g. @ref option::Parser::parse() "Parser::parse()".
- * @li Arguments that look like options (i.e. @c - followed by at least 1 character) but
+ * @li Arguments that look like options (i.e. @c '-' followed by at least 1 character) but
  *     aren't, are NOT treated as non-option arguments. They are treated as unknown options and
  *     are collected into a list of unknown options for error reporting. @n
  *     This means that in order to pass a first non-option
@@ -269,10 +276,12 @@ typedef ArgStatus (*CheckArg)(const Option& option, bool msg);
  * enum OptionType {DISABLE, ENABLE, OTHER};
  *
  * const option::Descriptor usage[] = {
- *   { CREATE, OTHER,
- *     "c", "create",
- *     Arg::None,
- *     "--create  Tells the program to create something."
+ *   { CREATE,                                            // index
+ *     OTHER,                                             // type
+ *     "c",                                               // shortopt
+ *     "create",                                          // longopt
+ *     Arg::None,                                         // check_arg
+ *     "--create  Tells the program to create something." // help
  *   }
  *   , ...
  * };
@@ -313,7 +322,7 @@ struct Descriptor
   /**
    * @brief Each char in this string will be accepted as a short option character.
    *
-   * The string must not include the minus character @c - or you'll get undefined
+   * The string must not include the minus character @c '-' or you'll get undefined
    * behaviour.
    *
    * If this Descriptor should not have short option characters, use the empty
@@ -342,10 +351,10 @@ struct Descriptor
    * The first dummy Descriptor will be used for unknown options (see below).
    *
    * @par Unknown Option Descriptor:
-   * The first dummy Descriptor in the list of Descriptors passed to Parser
+   * The first dummy Descriptor in the list of Descriptors,
    * whose @ref shortopt and @ref longopt are both the empty string, will be used
    * as the Descriptor for unknown options. An unknown option is a string in
-   * the argument vector that is not a lone minus @c - but starts with a minus
+   * the argument vector that is not a lone minus @c '-' but starts with a minus
    * character and does not match any Descriptor's @ref shortopt or @ref longopt. @n
    * Note that the dummy descriptor's @ref check_arg function @e will be called and
    * its return value will be evaluated as usual. I.e. if it returns @ref ARG_ILLEGAL
@@ -374,7 +383,7 @@ struct Descriptor
    * @brief The usage text associated with the options in this Descriptor.
    *
    * You can use option::printUsage() to format your usage message based on
-   * the Options' help texts. You can use dummy Descriptors where
+   * the @c help texts. You can use dummy Descriptors where
    * @ref shortopt and @ref longopt are both the empty string to add text to
    * the usage that is not related to a specific option.
    *
@@ -401,8 +410,11 @@ struct Descriptor
  *     @code for (Option* opt = options[FILE]; opt; opt = opt->next())
  *   fname = opt->arg; ... @endcode
  */
-struct Option
+class Option
 {
+  Option* next_;
+  Option* prev_;
+public:
   /**
    * @brief Pointer to this Option's Descriptor.
    *
@@ -428,15 +440,13 @@ struct Option
    *
    * The main purpose of this string is to be presented to the user in messages.
    *
-   * In the case of a long option, this is the actual @c argv pointer.
-   * This means that if the long option has an attached argument (e.g. @c --foo=arg )
-   * it will be included in this string.
+   * In the case of a long option, this is the actual @c argv pointer, i.e. the first
+   * character is a '-'. In the case of a short option this points to the option
+   * character within the @c argv string.
    *
-   * In the case of a short option, this points to a 2-char buffer that is part
-   * of this Option and contains just the extracted short option character followed
-   * by a 0 byte. In the pathological case of a short option called @c - (typically
-   * as an unknown option) this extraction does not work and the @c name string will
-   * contain more characters.
+   * Note that in the case of a short option group or an attached option argument, this
+   * string will contain additional characters following the actual name. Use @ref namelen
+   * to filter out the actual option name only.
    *
    */
   const char* name;
@@ -448,6 +458,27 @@ struct Option
    * is a valid argument.
    */
   const char* arg;
+
+  /**
+   * @brief The length of the option @ref name.
+   *
+   * Because @ref name points into the actual @c argv string, the option name may be
+   * followed by more characters (e.g. other short options in the same short option group).
+   * This value is the number of bytes (not characters!) that are part of the actual name.
+   *
+   * For a short option, this length is always 1. For a long option this length is always
+   * at least 2 if single minus long options are permitted and at least 3 if they are disabled.
+   *
+   * @note
+   * In the pathological case of a minus within a short option group (e.g. @c -xf-z), this
+   * length is incorrect, because this case will be misinterpreted as a long option and the
+   * name will therefore extend to the string's 0-terminator or a following '=" character
+   * if there is one. This is irrelevant for most uses of @ref name and @c namelen. If you
+   * really need to distinguish the case of a long and a short option, compare @ref name to
+   * the @c argv pointers. A long option's @c name is always identical to one of them,
+   * whereas a short option's is never.
+   */
+  int namelen;
 
   /**
    * @brief Returns Descriptor::type of this Option's Descriptor, or 0 if this Option
@@ -690,26 +721,22 @@ struct Option
 
   /**
    * @brief Creates a new Option that is a one-element linked list and has NULL
-   * @ref desc, @ref name and @ref arg.
+   * @ref desc, @ref name, @ref arg and @ref namelen.
    */
   Option() :
-      desc(0), name(0), arg(0)
+      desc(0), name(0), arg(0), namelen(0)
   {
     prev_ = tag(this);
     next_ = tag(this);
-    name_buf[0] = 0;
-    name_buf[1] = 0;
   }
 
   /**
    * @brief Creates a new Option that is a one-element linked list and has the given
-   * values for @ref desc, @ref name and @ref arg (extracting @c name if necessary).
+   * values for @ref desc, @ref name and @ref arg.
    *
-   * If @c name_ points at a single-character option (the option character itself, not the '-'),
-   * it will be extracted,
-   * so that this Option's @ref name does not contain any characters following the option.
-   * This does not work if the single-character option is @c '-'. In that case the whole
-   * @c name will be stored.
+   * If @c name_ points at a character other than '-' it will be assumed to refer to a
+   * short option and @ref namelen will be set to 1. Otherwise the length will extend to
+   * the first '=' character or the string's 0-terminator.
    */
   Option(const Descriptor* desc_, const char* name_, const char* arg_)
   {
@@ -741,11 +768,9 @@ private:
    * @internal
    * @brief Sets the fields of this Option to the given values (extracting @c name if necessary).
    *
-   * If @c name_ points at a single-character option (the option character itself, not the '-'),
-   * it will be extracted,
-   * so that this Option's @ref name does not contain any characters following the option.
-   * This does not work if the single-character option is @c '-'. In that case the whole
-   * @c name will be stored.
+   * If @c name_ points at a character other than '-' it will be assumed to refer to a
+   * short option and @ref namelen will be set to 1. Otherwise the length will extend to
+   * the first '=' character or the string's 0-terminator.
    */
   void init(const Descriptor* desc_, const char* name_, const char* arg_)
   {
@@ -754,13 +779,14 @@ private:
     arg = arg_;
     prev_ = tag(this);
     next_ = tag(this);
-    name_buf[0] = 0;
-    name_buf[1] = 0;
-    if (name != 0 && name[0] != '-')
-    {
-      name_buf[0] = *name;
-      name = &name_buf[0];
-    }
+    namelen = 0;
+    if (name == 0)
+      return;
+    namelen = 1;
+    if (name[0] != '-')
+      return;
+    while (name[namelen] != 0 && name[namelen] != '=')
+      ++namelen;
   }
 
   static Option* tag(Option* ptr)
@@ -777,10 +803,6 @@ private:
   {
     return ((unsigned long long) ptr & 1);
   }
-
-  Option* next_;
-  Option* prev_;
-  char name_buf[2];
 };
 
 /**
@@ -793,9 +815,16 @@ private:
  * @code
  * struct Arg: public option::Arg
  * {
+ *   static void printError(const char* msg1, const option::Option& opt, const char* msg2)
+ *   {
+ *     fprintf(stderr, "ERROR: %s", msg1);
+ *     fwrite(opt.name, opt.namelen, 1, stderr);
+ *     fprintf(stderr, "%s", msg2);
+ *   }
+ *
  *   static option::ArgStatus Unknown(const option::Option& option, bool msg)
  *   {
- *     if (msg) fprintf(stderr, "ERROR: Unknown option '%s'\n", option.name);
+ *     if (msg) printError("Unknown option '", option, "'\n");
  *     return option::ARG_ILLEGAL;
  *   }
  *
@@ -804,7 +833,7 @@ private:
  *     if (option.arg != 0)
  *       return option::ARG_OK;
  *
- *     if (msg) fprintf(stderr, "Option '%s' requires an argument\n", option.name);
+ *     if (msg) printError("Option '", option, "' requires an argument\n");
  *     return option::ARG_ILLEGAL;
  *   }
  *
@@ -813,18 +842,18 @@ private:
  *     if (option.arg != 0 && option.arg[0] != 0)
  *       return option::ARG_OK;
  *
- *     if (msg) fprintf(stderr, "Option '%s' requires a non-empty argument\n", option.name);
+ *     if (msg) printError("Option '", option, "' requires a non-empty argument\n");
  *     return option::ARG_ILLEGAL;
  *   }
  *
  *   static option::ArgStatus Numeric(const option::Option& option, bool msg)
  *   {
  *     char* endptr = 0;
- *     if (option.arg != 0) strtol(option.arg, &endptr, 10);
+ *     if (option.arg != 0 && strtol(option.arg, &endptr, 10)){};
  *     if (endptr != option.arg && *endptr == 0)
  *       return option::ARG_OK;
  *
- *     if (msg) fprintf(stderr, "Option '%s' requires a numeric argument\n", option.name);
+ *     if (msg) printError("Option '", option, "' requires a numeric argument\n");
  *     return option::ARG_ILLEGAL;
  *   }
  * };
@@ -838,12 +867,13 @@ struct Arg
     return ARG_NONE;
   }
 
-  //! @brief Returns ARG_IGNORE if the argument starts with @c '-', otherwise ARG_OK.
+  //! @brief Returns ARG_OK if the argument is attached and ARG_IGNORE otherwise.
   static ArgStatus Optional(const Option& option, bool)
   {
-    if (option.arg && option.arg[0] == '-')
+    if (option.arg && option.name[option.namelen] != 0)
+      return ARG_OK;
+    else
       return ARG_IGNORE;
-    return ARG_OK;
   }
 };
 
@@ -851,10 +881,10 @@ struct Arg
  * @brief Determines the minimum lengths of the buffer and options arrays used for Parser.
  *
  * Because Parser doesn't use dynamic memory its output arrays have to be pre-allocated.
- * If you want don't want to use fixed size arrays (which may turn out too small, causing
+ * If you don't want to use fixed size arrays (which may turn out too small, causing
  * command line arguments to be dropped), you can use Stats to determine the correct sizes.
  * Stats work cumulative. You can first pass in your default options and then the real
- * options and afterwards the counts will reflect the sums.
+ * options and afterwards the counts will reflect the union.
  */
 struct Stats
 {
@@ -897,6 +927,7 @@ struct Stats
    *
    * @note
    * The calls to Stats methods must match the later calls to Parser methods.
+   * See Parser::parse() for the meaning of the arguments.
    */
   Stats(bool gnu, const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
         bool single_minus_longopt = false) :
@@ -936,6 +967,7 @@ struct Stats
    *
    * @note
    * The calls to Stats methods must match the later calls to Parser methods.
+   * See Parser::parse() for the meaning of the arguments.
    */
   void add(bool gnu, const Descriptor usage[], int argc, const char** argv, int min_abbr_len = 0, //
            bool single_minus_longopt = false);
@@ -986,10 +1018,10 @@ private:
  */
 class Parser
 {
-  int op_count; //!< @internal see optionsCount()
-  int nonop_count; //!< @internal see nonOptionsCount()
-  const char** nonop_args; //!< @internal see nonOptions()
-  bool err; //!< @internal see error()
+  int op_count; //!< @internal @brief see optionsCount()
+  int nonop_count; //!< @internal @brief see nonOptionsCount()
+  const char** nonop_args; //!< @internal @brief see nonOptions()
+  bool err; //!< @internal @brief see error()
 public:
 
   /**
@@ -1078,7 +1110,7 @@ public:
    *               @c bufmax-1. If there are more options, they will be processed (in particular
    *               their CheckArg will be called) but not stored. @n
    *               If you used Stats::buffer_max to dimension this array, you can pass
-   *               -1 (or don't pass @c bufmax at all) which tells parse() that the buffer is
+   *               -1 (or not pass @c bufmax at all) which tells parse() that the buffer is
    *               "large enough".
    * @attention
    * Remember that @c options and @c buffer store Option @e objects, not pointers. Therefore it
@@ -1233,22 +1265,22 @@ private:
    *
    * Returns true iff @c st1 and @c st2 have a common
    * prefix with the following properties:
-   * @li (if min > 0) its length at least @c min characters or the same length as @c st1 (whichever is smaller).
+   * @li (if min > 0) its length is at least @c min characters or the same length as @c st1 (whichever is smaller).
    * @li (if min <= 0) its length is the same as that of @c st1
    * @li within @c st2 the character following the common prefix is either '=' or end-of-string.
    *
    * Examples:
    * @code
-   * streqabbr("foo", "foo=bar", <anything>) == true
-   * streqabbr("foo", "fo=bar", 2) == true
-   * streqabbr("foo", "fo", 2) == true
-   * streqabbr("foo", "fo", 0) == false
-   * streqabbr("foo", "f=bar", 2) == false
-   * streqabbr("foo", "f", 2) == false
-   * streq("fo", "foo=bar", <anything>)  == false
-   * streq("foo", "foobar", <anything>)  == false
-   * streq("foo", "fobar", <anything>)  == false
-   * streq("foo", "foo", <anything>)     == true
+   * streqabbr("foo", "foo=bar",<anything>) == true
+   * streqabbr("foo", "fo=bar" , 2) == true
+   * streqabbr("foo", "fo"     , 2) == true
+   * streqabbr("foo", "fo"     , 0) == false
+   * streqabbr("foo", "f=bar"  , 2) == false
+   * streqabbr("foo", "f"      , 2) == false
+   * streqabbr("fo" , "foo=bar",<anything>)  == false
+   * streqabbr("foo", "foobar" ,<anything>)  == false
+   * streqabbr("foo", "fobar"  ,<anything>)  == false
+   * streqabbr("foo", "foo"    ,<anything>)  == true
    * @endcode
    */
   static bool streqabbr(const char* st1, const char* st2, long long min)
@@ -1313,7 +1345,7 @@ struct Parser::Action
   }
 
   /**
-   * @brief Called by Parser::workhorse() after finising the parse.
+   * @brief Called by Parser::workhorse() after finishing the parse.
    * @param numargs the number of non-option arguments remaining
    * @param args pointer to the first remaining non-option argument (if numargs > 0).
    *
@@ -1626,7 +1658,7 @@ inline bool Parser::workhorse(bool gnu, const Descriptor usage[], int numargs, c
 
 /**
  * @internal
- * @brief printUsage() implementation.
+ * @brief The implementation of option::printUsage().
  */
 struct PrintUsageImplementation
 {
@@ -1794,7 +1826,7 @@ struct PrintUsageImplementation
    * @brief Returns true if ch is the unicode code point of a wide character.
    *
    * @note
-   * The following character ranges are wide
+   * The following character ranges are treated as wide
    * @code
    * 1100..115F
    * 2329..232A  (just 2 characters!)
@@ -1858,7 +1890,7 @@ struct PrintUsageImplementation
   class LinePartIterator
   {
     const Descriptor* tablestart; //!< The 1st descriptor of the current table.
-    const Descriptor* rowdesc; //!< The descriptor that contains the current row.
+    const Descriptor* rowdesc; //!< The Descriptor that contains the current row.
     const char* rowstart; //!< Ptr to 1st character of current row within rowdesc->help.
     const char* ptr; //!< Ptr to current part within the current row.
     int col; //!< Index of current column.
@@ -1869,7 +1901,10 @@ struct PrintUsageImplementation
     int target_line_in_block; //!< Line index of the parts we should return to the user on this iteration.
     bool hit_target_line; //!< Flag whether we encountered a part with line index target_line_in_block in the current cell.
 
-    //! @brief Determines the length of the part at @ref ptr and stores it in @ref len.
+    /** 
+     * @brief Determines the byte and character lengths of the part at @ref ptr and 
+     * stores them in @ref len and @ref screenlen respectively.
+     */
     void update_length()
     {
       screenlen = 0;
@@ -2117,12 +2152,12 @@ struct PrintUsageImplementation
    * other columns. The following example makes this clearer:
    * @code
    * Column 1,1    Column 2,1     This is a long text
-   * Column 1,2    Column 2,2     that doesn't fit into
+   * Column 1,2    Column 2,2     that does not fit into
    *                              a single line.
    * @endcode
    *
    * The difficulty in producing this output is that the whole string
-   * "This is a long text that doesn't fit into a single line" is the
+   * "This is a long text that does not fit into a single line" is the
    * 1st and only part of column 3. In order to produce the above
    * output the string must be output piecemeal, interleaved with
    * the data from the other columns.
@@ -2131,29 +2166,29 @@ struct PrintUsageImplementation
   {
     static const int bufmask = 15; //!< Must be a power of 2 minus 1.
     /**
-     * Ring buffer for length component of pair (data, length).
+     * @brief Ring buffer for length component of pair (data, length).
      */
     int lenbuf[bufmask + 1];
     /**
-     * Ring buffer for data component of pair (data, length).
+     * @brief Ring buffer for data component of pair (data, length).
      */
     const char* datbuf[bufmask + 1];
     /**
-     * The indentation of the column to which the LineBuffer outputs. LineBuffer
+     * @brief The indentation of the column to which the LineBuffer outputs. LineBuffer
      * assumes that the indentation has already been written when @ref process()
      * is called, so this value is only used when a buffer flush requires writing
      * additional lines of output.
      */
     int x;
     /**
-     * The width of the column to line wrap.
+     * @brief The width of the column to line wrap.
      */
     int width;
-    int head; //!< index for next write
-    int tail; //!< index for next read - 1 (i.e. increment tail BEFORE read)
+    int head; //!< @brief index for next write
+    int tail; //!< @brief index for next read - 1 (i.e. increment tail BEFORE read)
 
     /**
-     * Multiple methods of LineWrapper may decide to flush part of the buffer to
+     * @brief Multiple methods of LineWrapper may decide to flush part of the buffer to
      * free up space. The contract of process() says that only 1 line is output. So
      * this variable is used to track whether something has output a line. It is
      * reset at the beginning of process() and checked at the end to decide if
@@ -2178,7 +2213,7 @@ struct PrintUsageImplementation
       head = (head + 1) & bufmask;
     }
 
-    //! Call BEFORE reading ...buf[tail].
+    //! @brief Call BEFORE reading ...buf[tail].
     void buf_next()
     {
       tail = (tail + 1) & bufmask;
@@ -2197,7 +2232,7 @@ struct PrintUsageImplementation
     }
 
     /**
-     * Writes a single line of output from the buffer to @c write.
+     * @brief Writes a single line of output from the buffer to @c write.
      */
     void write_one_line(IStringWriter& write)
     {
@@ -2330,6 +2365,12 @@ struct PrintUsageImplementation
         write_one_line(write); // write at most one line of actual output
     }
 
+    /**
+     * @brief Constructs a LineWrapper that wraps its output to fit into
+     * screen columns @c x1 (incl.) to @c x2 (excl.).
+     *
+     * @c x1 gives the indentation LineWrapper uses if it needs to indent.
+     */
     LineWrapper(int x1, int x2) :
         x(x1), width(x2 - x1), head(0), tail(bufmask)
     {
@@ -2669,7 +2710,8 @@ struct PrintUsageImplementation
  * @param usage the Descriptor[] array whose @c help texts will be formatted.
  * @param width the maximum number of characters per output line. Note that this number is
  *        in actual characters, not bytes. printUsage() supports UTF-8 in @c help and will
- *        count multi-byte UTF-8 sequences properly.
+ *        count multi-byte UTF-8 sequences properly. Asian wide characters are counted
+ *        as 2 characters.
  * @param last_column_min_percent (0-100) The minimum percentage of @c width that should be available
  *        for the last column (which typically contains the textual explanation of an option).
  *        If less space is available, the last column will be printed on its own line, indented

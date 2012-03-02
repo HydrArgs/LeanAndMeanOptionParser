@@ -12,6 +12,7 @@
  */
 
 #include <iostream>
+#include <string>
 #include "optionparser.h"
 
 enum  optionIndex { UNKNOWN, HELP, PLUS };
@@ -46,7 +47,7 @@ int main(int argc, char* argv[])
       options[PLUS].count() << "\n";
 
   for (option::Option* opt = options[UNKNOWN]; opt; opt = opt->next())
-    std::cout << "Unknown option: " << opt->name << "\n";
+    std::cout << "Unknown option: " << std::string(opt->name,opt->namelen) << "\n";
 
   for (int i = 0; i < parse.nonOptionsCount(); ++i)
     std::cout << "Non-option #" << i << ": " << parse.nonOption(i) << "\n";

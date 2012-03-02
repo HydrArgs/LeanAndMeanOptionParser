@@ -1,3 +1,9 @@
+POSIX Guidelines for command line arguments
+
+http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html
+
+----------------------------------------------
+
 From the C standard:
 
 5.1.2.2.1 Program startup

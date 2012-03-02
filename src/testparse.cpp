@@ -264,7 +264,7 @@ int main()
     assert(options[UNKNOWN].last()->arg == 0);
     assert(options[VERBOSE].count()==1);
     assert(options[VERBOSE].arg==0);
-    assert(eq(options[VERBOSE].name,"v"));
+    assert(options[VERBOSE].name[0] == 'v' && options[VERBOSE].namelen == 1);
     assert(eq(options[X].arg,"xyzzy"));
     assert(eq(options[X].name,"X"));
 
@@ -333,10 +333,10 @@ int main()
     assert(eq(parse.nonOptions()[0],"nonoption1"));
     assert(eq(parse.nonOptions()[1],"nonoption2"));
     assert(options[ABBREVIATE]);
-    assert(options[UNKNOWN].count() == 2);
-    assert(eq(options[UNKNOWN].first()->name,"a"));
+    assert(options[UNKNOWN].count() == 2); // because of buxmax the 2nd 'b' cannot be stored
+    assert(options[UNKNOWN].first()->name[0] == 'a' && options[UNKNOWN].first()->namelen == 1);
     assert(options[UNKNOWN].first()->arg == 0);
-    assert(eq(options[UNKNOWN].last()->name,"b"));
+    assert(eq(options[UNKNOWN].last()->name,"bb"));
   }
   {
     Stats stats(true, multi_usage, -1, reorder);
