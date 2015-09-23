@@ -8,11 +8,16 @@
  * @file
  * @brief Test for multiple definition errors.
  *
+ * @note
+ * This program is for developing TLMC++OP. It is neither an example nor a functionality test.
+ * Do not worry if it doesn't compile or run on your platform.
+ *
  * @ref testodr1.cc and @ref testodr2.cc test optionparser.h for
  * violations of the one definition rule, both at compile-time and at
  * link-time. IOW, they test if optionparser.h can be included
  * multiple times as well as that multiple object files that include
  * it can be linked together.
+ *
  */
 
 #include "optionparser.h"

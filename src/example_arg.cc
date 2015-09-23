@@ -6,7 +6,8 @@
 
 /**
  * @file
- * @brief Demonstrates handling various types of option arguments (required, numeric,...).
+ * @brief Demonstrates handling various types of option arguments (required, numeric,...) with
+   no dependency on the C++ standard library (only C lib).
  *
  * @include example_arg.cc
  */
@@ -99,7 +100,19 @@ int main(int argc, char* argv[])
 {
   argc-=(argc>0); argv+=(argc>0); // skip program name argv[0] if present
   option::Stats stats(usage, argc, argv);
+
+#ifdef __GNUC__
+    // GCC supports C99 VLAs for C++ with proper constructor calls.
   option::Option options[stats.options_max], buffer[stats.buffer_max];
+#else
+    // use calloc() to allocate 0-initialized memory. It's not the same
+    // as properly constructed elements, but good enough. Obviously in an
+    // ordinary C++ program you'd use new[], but this file demonstrates that
+    // TLMC++OP can be used without any dependency on the C++ standard library.
+  option::Option* options = (option::Option*)calloc(stats.options_max, sizeof(option::Option));
+  option::Option* buffer  = (option::Option*)calloc(stats.buffer_max,  sizeof(option::Option));
+#endif
+
   option::Parser parse(usage, argc, argv, options, buffer);
 
   if (parse.error())

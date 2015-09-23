@@ -7,13 +7,18 @@
 /**
  * @file
  * @brief Test program for the option::printUsage() function.
+ *
+ * @note
+ * This program is for developing TLMC++OP. It is neither an example nor a functionality test.
+ * Do not worry if it doesn't compile or run on your platform.
  */
 
-#include "optionparser.h"
 #include <cstdio>
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
+
+#include "optionparser.h"
 
 using namespace std;
 using option::Descriptor;

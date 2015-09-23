@@ -7,6 +7,11 @@
 /**
  * @file
  * @brief Test program for option::Stats and option::Parser.
+ *
+ * @note
+ * This program is for developing TLMC++OP. It is neither an example nor a functionality test.
+ * Do not worry if it doesn't compile or run on your platform.
+ *
  */
 
 /**

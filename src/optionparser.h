@@ -89,26 +89,30 @@
  *
  * @par Download:
  * Tarball with examples and test programs:
- * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.2.tar.gz/download">optionparser-1.2.tar.gz</a> @n
+ * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.3.tar.gz/download">optionparser-1.3.tar.gz</a> @n
  * Just the header (this is all you really need):
  * <a style="font-size:larger;font-weight:bold" href="http://optionparser.sourceforge.net/optionparser.h">optionparser.h</a>
  *
  * @par Changelog:
- * <b>Version 1.2:</b> <div style="display:inline-block; vertical-align:top">Added @ref option::Option::namelen "Option::namelen" and removed the extraction
+ * <b>Version 1.3:</b> Compatible with Microsoft Visual C++. @n
+ * <b>Version 1.2:</b> Added @ref option::Option::namelen "Option::namelen" and removed the extraction
  *                     of short option characters into a special buffer. @n
  *                     Changed @ref option::Arg::Optional "Arg::Optional" to accept arguments if they are attached
  *                     rather than separate. This is what GNU getopt() does and how POSIX recommends
- *                     utilities should interpret their arguments.</div> @n
+ *                     utilities should interpret their arguments.@n
  * <b>Version 1.1:</b> Optional mode with argument reordering as done by GNU getopt(), so that
  *                     options and non-options can be mixed. See
  *                     @ref option::Parser::parse() "Parser::parse()".
  *
  * @par Feedback:
- * Send questions, bug reports, feature requests etc. to: <tt><b>optionparser-feedback&nbsp;(a)&nbsp;lists.sourceforge.net</b></tt>
+ * Send questions, bug reports, feature requests etc. to: <tt><b>optionparser-feedback<span id="antispam">&nbsp;(a)&nbsp;</span>lists.sourceforge.net</b></tt>
+ * @htmlonly <script type="text/javascript">document.getElementById("antispam").innerHTML="@"</script> @endhtmlonly
+ *
  *
  * @par Example program:
  * (Note: @c option::* identifiers are links that take you to their documentation.)
  * @code
+ * #error EXAMPLE SHORTENED FOR READABILITY. BETTER EXAMPLES ARE IN THE .TAR.GZ!
  * #include <iostream>
  * #include "optionparser.h"
  *
@@ -215,7 +219,22 @@
 namespace option
 {
 
-struct Option;
+#ifdef _MSC_VER
+#include <intrin.h>
+#pragma intrinsic(_BitScanReverse)
+struct MSC_Builtin_CLZ
+{
+  static int builtin_clz(unsigned x)
+  {
+    unsigned long index;
+    _BitScanReverse(&index, x);
+    return 32-index; // int is always 32bit on Windows, even for target x64
+  }
+};
+#define __builtin_clz(x) MSC_Builtin_CLZ::builtin_clz(x)
+#endif
+
+class Option;
 
 /**
  * @brief Possible results when checking if an argument is valid for a certain option.
@@ -389,6 +408,10 @@ struct Descriptor
    *
    * See option::printUsage() for special formatting characters you can use in
    * @c help to get a column layout.
+   *
+   * @attention
+   * Must be UTF-8-encoded. If your compiler supports C++11 you can use the "u8"
+   * prefix to make sure string literals are properly encoded.
    */
   const char* help;
 };
@@ -512,7 +535,7 @@ public:
    */
   int index() const
   {
-    return desc == 0 ? -1 : desc->index;
+    return desc == 0 ? -1 : (int)desc->index;
   }
 
   /**
@@ -1225,9 +1248,9 @@ public:
   }
 
 private:
-  friend class Stats;
+  friend struct Stats;
   class StoreOptionAction;
-  class Action;
+  struct Action;
 
   /**
    * @internal
@@ -1814,10 +1837,9 @@ struct PrintUsageImplementation
 
     if (indent > 0)
     {
-      char space[indent];
+      char space = ' ';
       for (int i = 0; i < indent; ++i)
-        space[i] = ' ';
-      write(space, indent);
+        write(&space, 1);
       x = want_x;
     }
   }
@@ -1912,7 +1934,7 @@ struct PrintUsageImplementation
       {
         ++screenlen;
         unsigned ch = (unsigned char) ptr[len];
-        if (ch > 0xC1) // everything <= 0xC1 (yes, even 0xC1 itself) is not a valid UTF-8 sta
+        if (ch > 0xC1) // everything <= 0xC1 (yes, even 0xC1 itself) is not a valid UTF-8 start byte
         {
           // int __builtin_clz (unsigned int x)
           // Returns the number of leading 0-bits in x, starting at the most significant bit
@@ -2705,6 +2727,12 @@ struct PrintUsageImplementation
  *     This differs from the way functors are passed to e.g. the STL algorithms.
  * @li All printUsage() templates are tiny wrappers around a shared non-template implementation.
  *     So there's no penalty for using different versions in the same program.
+ * @li printUsage() always interprets Descriptor::help as UTF-8 and always produces UTF-8-encoded
+ *     output. If your system uses a different charset, you must do your own conversion. You
+ *     may also need to change the font of the console to see non-ASCII characters properly.
+ *     This is particularly true for Windows.
+ * @li @b Security @b warning: Do not insert untrusted strings (such as user-supplied arguments)
+ *     into the usage. printUsage() has no protection against malicious UTF-8 sequences.
  *
  * @param prn The output method to use. See the examples above.
  * @param usage the Descriptor[] array whose @c help texts will be formatted.
