@@ -91,11 +91,12 @@
  *
  * @par Download:
  * Tarball with examples and test programs:
- * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.6.tar.gz/download">optionparser-1.6.tar.gz</a> @n
+ * <a style="font-size:larger;font-weight:bold" href="http://sourceforge.net/projects/optionparser/files/optionparser-1.7.tar.gz/download">optionparser-1.7.tar.gz</a> @n
  * Just the header (this is all you really need):
  * <a style="font-size:larger;font-weight:bold" href="http://optionparser.sourceforge.net/optionparser.h">optionparser.h</a>
  *
  * @par Changelog:
+ * <b>Version 1.7:</b> Work on const-correctness. @n
  * <b>Version 1.6:</b> Fix for MSC compiler. @n
  * <b>Version 1.5:</b> Fixed 2 warnings about potentially uninitialized variables. @n
  *                     Added const version of Option::next(). @n
@@ -555,10 +556,10 @@ public:
    *
    * Returns 0 when called for an unused/invalid option.
    */
-  int count()
+  int count() const
   {
     int c = (desc == 0 ? 0 : 1);
-    Option* p = first();
+    const Option* p = first();
     while (!p->isLast())
     {
       ++c;
@@ -613,6 +614,14 @@ public:
   }
 
   /**
+  * const version of Option::first().
+  */
+  const Option* first() const
+  {
+    return const_cast<Option*>(this)->first();
+  }
+
+  /**
    * @brief Returns a pointer to the last element of the linked list.
    *
    * Use this when you want the last occurrence of an option on the command line to
@@ -629,6 +638,14 @@ public:
    * the state listed last on the command line.
    */
   Option* last()
+  {
+    return first()->prevwrap();
+  }
+
+  /**
+  * const version of Option::last().
+  */
+  const Option* last() const
   {
     return first()->prevwrap();
   }
@@ -655,6 +672,14 @@ public:
    * line.
    */
   Option* prevwrap()
+  {
+    return untag(prev_);
+  }
+
+  /**
+  * const version of Option::prevwrap().
+  */
+  const Option* prevwrap() const
   {
     return untag(prev_);
   }
