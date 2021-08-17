@@ -1,1 +1,11 @@
 /build
+*.o
+
+/examples/example
+/examples/example_arg
+/examples/testodr
+/examples/testparse
+/examples/testprintusage
+
+/html
+/html-dev
