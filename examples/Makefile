@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-W -Wall -g -fmessage-length=0
+CXXFLAGS=-W -Wall -g -fmessage-length=0 -I../include
 CCFLAGS=$(CXXFLAGS) -fno-exceptions -fno-rtti -nodefaultlibs
 OPTIMIZE=-Os -fomit-frame-pointer
 #OPTIMIZE=-O0
@@ -11,17 +11,17 @@ TARBALL=../$(PACKAGEDIR).tar.gz
 all: example_arg testparse testprintusage testodr example doc
 
 # .cpp files depend on the C++ standard lib
-%: %.cpp optionparser.h
+%: %.cpp ../include/optionparser.h
 	$(CXX) $(CXXFLAGS) $(OPTIMIZE) -o $@ $<
 
 # .cc files depend only on libc 
-%.o: %.cc optionparser.h
+%.o: %.cc ../include/optionparser.h
 	$(CXX) $(CCFLAGS) $(OPTIMIZE) -c $<
 
-%: %.cc optionparser.h
+%: %.cc ../include/optionparser.h
 	$(CXX) $(CCFLAGS) $(OPTIMIZE) -lc -o $@ $<
 
-testprintusage: testprintusage.cpp optionparser.h
+testprintusage: testprintusage.cpp ../include/optionparser.h
 	$(CXX) $(CXXFLAGS) $(OPTIMIZE) -Wno-unused-result -o $@ $<
 
 # testodr needs to be linked in a separate step rather than
@@ -41,13 +41,13 @@ clean:
 
 package:
 	rm -rf $(PACKAGEDIR)
-	mkdir -p $(PACKAGEDIR)/src
+	mkdir -p $(PACKAGEDIR)/examples
 	cp ../Doxyfile ../DoxygenLayout.xml ../README_ARGC_ARGV $(PACKAGEDIR)
-	cp Makefile example.cpp example_arg.cc optionparser.h \
+	cp Makefile example.cpp example_arg.cc ../include/optionparser.h \
 	   testodr1.cc testodr2.cc testparse.cpp testprintusage.cpp \
-	   printUsage.h $(PACKAGEDIR)/src
+	   printUsage.h $(PACKAGEDIR)/examples
 	tar --owner=0 --group=0 -czf $(TARBALL) $(PACKAGEDIR)
 
 upload: all package
-	cd .. && scp -r src/optionparser.h html/* optionparser-frs:/home/project-web/optionparser/htdocs
+	cd .. && scp -r include/optionparser.h html/* optionparser-frs:/home/project-web/optionparser/htdocs
 	scp $(TARBALL) optionparser-frs:/home/frs/project/o/op/optionparser
